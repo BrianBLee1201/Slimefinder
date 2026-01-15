@@ -200,7 +200,7 @@ The sum of contributing chunks **exactly matches the printed score.**
 to see usage and examples.
 
 7. **Why do we pick one point of a chunk instead of sampling all points within a square:** to improve performance. A chunk is a 16x320x16 area. There are 256 squares in a chunk at a fixed y level, and sampling all points and calculating would sharply increase computational time.
-8. **Why do I get this error message `[ERROR] Biome validation requires cubiomes backend. Failed to load.`:**
+8. **Why do I get this error message `[ERROR] Biome validation requires cubiomes backend. Failed to load.`:** Because the cubiomes folder is empty. To resolve this, you need to git clone _recursively_: `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
 
 ## 🔮 Long-Term Plans & Version Support
 
