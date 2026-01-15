@@ -67,7 +67,7 @@ Optional (for biome validation):
 - `libcubiomeswrap.dylib`
 - Cubiomes-compatible Minecraft version ID
 
-⚠️ **Warning:** I had not fully tested this in Linux and Windows. If you have issues running in Linux and Windows, then let me know.
+⚠️ **Warning:** I had not fully tested this in Windows and Linux. If you have issues running in Windows or Linux, then let me know.
 
 ---
 
@@ -200,7 +200,7 @@ The sum of contributing chunks **exactly matches the printed score.**
 to see usage and examples.
 
 7. **Why do we pick one point of a chunk instead of sampling all points within a square:** to improve performance. A chunk is a 16x320x16 area. There are 256 squares in a chunk at a fixed y level, and sampling all points and calculating would sharply increase computational time.
-8. **Why do I get this error message `[ERROR] Biome validation requires cubiomes backend. Failed to load.`:** Because the cubiomes folder is empty. To resolve this, you need to git clone _recursively_: `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
+8. **Why is the cubiomes folder empty:** you need to git clone _recursively_: `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
 
 ## 🔮 Long-Term Plans & Version Support
 
@@ -229,6 +229,12 @@ Planned and potential improvements include:
   - Better work-stealing strategies
   - Adaptive tiling based on memory pressure
   - Optional GPU-assisted exploration experiments (research-only)
+- **Windows and Linux Support**
+  - Currently, I am trying to fix the `[ERROR] Biome validation requires cubiomes backend. Failed to load.` message in Windows, even if `external/cubiomes` folder is not empty. So far I speculate it might be a hardware incompatibility.
+- **Searching from a specific margin**
+  - Computing at the borders without needing to recalculate the whole square that you know do not have enough slime chunks coverage
+  - Given a small square of length `m` and a large square of length `o`, it searches from the square ring with size `o-m` instead of searching the entire square with size `o`, which saves performance.
+  - The world border occurs 30M blocks from (0, 0), so if you normally run the square with 1875000 chunks, it will take really long time. This is why I plan on searching throught the border instead of the entire square.
 
 Suggestions and contributions are welcome. This project is intended to evolve alongside the Minecraft technical community.
 
