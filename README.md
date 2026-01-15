@@ -230,11 +230,13 @@ Planned and potential improvements include:
   - Adaptive tiling based on memory pressure
   - Optional GPU-assisted exploration experiments (research-only)
 - **Windows and Linux Support**
-  - Currently, I am trying to fix the `[ERROR] Biome validation requires cubiomes backend. Failed to load.` message in Windows, even if `external/cubiomes` folder is not empty. So far I speculate it might be a hardware incompatibility.
+  - Currently, I am trying to fix the `[ERROR] Biome validation requires cubiomes backend. Failed to load.` message in Windows, even if `external/cubiomes` folder is not empty. So far I speculate it might be a hardware incompatibility. **This means you are not able to run the biome check, so you will want to verify each and every (x, z) coordinates manually**.
 - **Searching from a specific margin**
   - Computing at the borders without needing to recalculate the whole square that you know do not have enough slime chunks coverage
   - Given a small square of length `m` and a large square of length `o`, it searches from the square ring with size `o-m` instead of searching the entire square with size `o`, which saves performance.
   - The world border occurs 30M blocks from (0, 0), so if you normally run the square with 1875000 chunks, it will take really long time. This is why I plan on searching throught the border instead of the entire square.
+- **Calculating the chunk statistics at one single point**
+  - Giving overview of how many chunks covered, including partial deep dark and mushroom fields biomes.
 
 Suggestions and contributions are welcome. This project is intended to evolve alongside the Minecraft technical community.
 
