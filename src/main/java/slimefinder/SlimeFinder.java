@@ -15,6 +15,7 @@ public final class SlimeFinder {
     public static final class Args {
         long seed;
         int mChunks;
+        int innerChunks = 0; // inner square radius in chunks to skip (ring search). 0 = full square
         double threshold = 6.0;
         int farmY = -64;
         int samples = 4;
@@ -48,6 +49,7 @@ public final class SlimeFinder {
           --threshold <double>   Minimum score to keep (default 6.0)
           --threads <int>        Worker threads (default = CPU count)
           --topk <int>           Keep top K in before_validation.csv (default 50)
+          --inner-chunks <int>  Skip centers inside [-inner,inner]^2 (default 0; ring search when >0)
 
         Biome validation (optional):
           --biomes               Validate Deep Dark + Mushroom Fields after fast search
@@ -79,6 +81,7 @@ public final class SlimeFinder {
             switch (k) {
                 case "--seed" -> { a.seed = Long.parseLong(require(v, k)); i++; }
                 case "--m-chunks" -> { a.mChunks = Integer.parseInt(require(v, k)); i++; }
+                case "--inner-chunks" -> { a.innerChunks = Integer.parseInt(require(v, k)); i++; }
                 case "--threshold" -> { a.threshold = Double.parseDouble(require(v, k)); i++; }
                 case "--farm-y" -> { a.farmY = Integer.parseInt(require(v, k)); i++; }
                 case "--samples" -> { a.samples = Integer.parseInt(require(v, k)); i++; }
@@ -104,6 +107,7 @@ public final class SlimeFinder {
                           --samples <int>
                           --topk <int>
                           --threads <int>
+                          --inner-chunks <int>          (default 0; >0 searches only the outer ring)
                           --biomes                    (apply biome validation after fast search)
                           --biome-debug
                           --cubiomes-lib <path>
@@ -130,6 +134,12 @@ public final class SlimeFinder {
         }
         if (!contains(argv, "--seed")) {
             throw new IllegalArgumentException("Missing required --seed");
+        }
+        if (a.innerChunks < 0) {
+            throw new IllegalArgumentException("--inner-chunks must be >= 0");
+        }
+        if (a.innerChunks > a.mChunks) {
+            throw new IllegalArgumentException("--inner-chunks must be <= --m-chunks");
         }
         return a;
     }
@@ -200,10 +210,18 @@ public final class SlimeFinder {
         }
 
         int m = args.mChunks;
-        long candidates = (long)(2 * m + 1) * (2L * m + 1);
+        int inner = args.innerChunks;
+        final int innerFinal = inner;
+        long outerCount = (long)(2 * m + 1) * (2L * m + 1);
+        long innerCount = (inner > 0) ? (long)(2 * inner + 1) * (2L * inner + 1) : 0L;
+        long candidates = outerCount - innerCount;
 
         System.out.println("Seed=" + args.seed);
-        System.out.println("Candidates: chunks in [-" + m + ", " + m + "] => " + candidates + " candidates");
+        if (inner > 0) {
+            System.out.println("Candidates: ring in chunks outer=[-" + m + "," + m + "] minus inner=[-" + inner + "," + inner + "] => " + candidates + " candidates");
+        } else {
+            System.out.println("Candidates: chunks in [-" + m + ", " + m + "] => " + candidates + " candidates");
+        }
         System.out.println("Window: circle R=128 blocks => chunk radius cr=" + CR + " (kernel 17x17)");
         System.out.println("Biome: " + (args.biomes ? "ON" : "OFF") + " at y=" + args.farmY + ", samples=" + args.samples + "x" + args.samples);
         System.out.println("Threshold: " + args.threshold);
@@ -253,6 +271,14 @@ public final class SlimeFinder {
                 final int cx1 = Math.min(m, cx0 + tileCols - 1);
                 final int cx0Final = cx0;
                 final int cx1Final = cx1;
+                // Ring search optimization: if this entire tile (X range and Z range) is inside the inner square,
+                // skip computing its stripes entirely.
+                if (innerFinal > 0
+                        && cx0Final >= -innerFinal && cx1Final <= innerFinal
+                        && cz0Final >= -innerFinal && cz1Final <= innerFinal) {
+                    // Do not print "Processed tile" for skipped tiles.
+                    continue;
+                }
                 final int tileW = (cx1 - cx0 + 1);
                 final int stripeSize = tileW * tileH;
 
@@ -319,12 +345,18 @@ public final class SlimeFinder {
                     int base = r * tileW;
                     for (int c = 0; c < tileW; c++) {
                         int s = stripe[base + c] & 0xFFFF;
-                        if (s >= (int)thr) {
-                            int cx = cx0 + c;
-                            int x0 = 16 * cx;
-                            int z0 = 16 * cz;
-                            top.offer(x0, z0, (double)s);
+                        if (s < (int)thr) continue;
+
+                        int cx = cx0 + c;
+
+                        // Ring search: skip centers that are inside the inner square
+                        if (innerFinal > 0 && Math.abs(cx) <= innerFinal && Math.abs(cz) <= innerFinal) {
+                            continue;
                         }
+
+                        int x0 = 16 * cx;
+                        int z0 = 16 * cz;
+                        top.offer(x0, z0, (double)s);
                     }
                 }
 

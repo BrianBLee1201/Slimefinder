@@ -92,6 +92,7 @@ This produces:
 ./gradlew run --args="
   --seed <SEED>
   --m-chunks <M>
+  --inner-chunks <O>
   --threshold <T>
   --threads <N>
   --biomes
@@ -106,6 +107,7 @@ Example:
 ./gradlew run --args="
   --seed 11868470311385
   --m-chunks 10000
+  --inner-chunks 5000
   --threshold 50
   --threads 8
   --biomes
@@ -149,6 +151,7 @@ Final biome-validated results (filtered + updated scores).
 
 | Flag | Description |
 | --- | ---|
+| `--inner-chunks` | Exclude square within 4 endpoint chunks: (-o, -o), (-o, o), (o, -o), and (o, o), saving performance (default: 0, which is the full square search)|
 | `--threshold` | Minimum slime-chunk count to keep (default: 6) |
 | `--threads` | Number of worker threads (default: CPU count) |
 | `--topk` | Number of candidates kept for validation (default: 50) |
