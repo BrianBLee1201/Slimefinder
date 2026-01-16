@@ -1,4 +1,5 @@
 package slimefinder;
+import java.util.Collections;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -191,6 +192,109 @@ public final class SlimeFinder {
         return rows;
     }
 
+        private record Tile(int cz0, int cz1, int cx0, int cx1) {}
+    private record TileResult(Tile tile, TopK top) {}
+
+    private static List<Tile> buildTiles(int m, int inner, int tileRows, int tileCols) {
+        List<Tile> tiles = new ArrayList<>();
+
+        for (int cz0 = -m; cz0 <= m; cz0 += tileRows) {
+            int cz1 = Math.min(m, cz0 + tileRows - 1);
+
+            for (int cx0 = -m; cx0 <= m; cx0 += tileCols) {
+                int cx1 = Math.min(m, cx0 + tileCols - 1);
+
+                // Ring search: skip tiles fully contained in the inner square.
+                if (inner > 0
+                        && cx0 >= -inner && cx1 <= inner
+                        && cz0 >= -inner && cz1 <= inner) {
+                    continue;
+                }
+
+                tiles.add(new Tile(cz0, cz1, cx0, cx1));
+            }
+        }
+
+        return tiles;
+    }
+
+    private static TopK processTile(Tile t, Args args, KernelWeights kernel) {
+        final int m = args.mChunks;
+        final int inner = args.innerChunks;
+
+        final int cz0 = t.cz0();
+        final int cz1 = t.cz1();
+        final int cx0 = t.cx0();
+        final int cx1 = t.cx1();
+
+        final int tileH = cz1 - cz0 + 1;
+        final int tileW = cx1 - cx0 + 1;
+        final int stripeSize = tileW * tileH;
+
+        // Local stripe counts for this tile only.
+        short[] stripe = new short[stripeSize];
+
+        // Contributing slime chunks range.
+        final int kzMin = cz0 - CR;
+        final int kzMax = cz1 + CR;
+
+        int kxMin = cx0 - CR;
+        int kxMax = cx1 + CR;
+
+        // Clamp to global contributing range.
+        int globalKxMin = -m - CR;
+        int globalKxMax =  m + CR;
+        if (kxMin < globalKxMin) kxMin = globalKxMin;
+        if (kxMax > globalKxMax) kxMax = globalKxMax;
+
+        for (int kz = kzMin; kz <= kzMax; kz++) {
+            for (int kx = kxMin; kx <= kxMax; kx++) {
+                if (!SlimeChunk.isSlimeChunk(args.seed, kx, kz)) continue;
+
+                // Scatter +1 to every center whose 128-block circle intersects this chunk.
+                for (int dz = -CR; dz <= CR; dz++) {
+                    int cz = kz - dz;
+                    if (cz < cz0 || cz > cz1) continue;
+
+                    int rowBase = (cz - cz0) * tileW;
+                    for (int dx = -CR; dx <= CR; dx++) {
+                        int cx = kx - dx;
+                        if (cx < cx0 || cx > cx1) continue;
+                        if (!kernel.intersects(dx, dz)) continue;
+
+                        int idx = rowBase + (cx - cx0);
+                        stripe[idx] = (short)(stripe[idx] + 1);
+                    }
+                }
+            }
+        }
+
+        TopK localTop = new TopK(args.topk);
+        final int thrInt = (int)Math.ceil(args.threshold);
+
+        for (int r = 0; r < tileH; r++) {
+            int cz = cz0 + r;
+            int base = r * tileW;
+            for (int c = 0; c < tileW; c++) {
+                int s = stripe[base + c] & 0xFFFF;
+                if (s < thrInt) continue;
+
+                int cx = cx0 + c;
+
+                // Ring search: skip centers inside the inner square.
+                if (inner > 0 && Math.abs(cx) <= inner && Math.abs(cz) <= inner) {
+                    continue;
+                }
+
+                int x0 = 16 * cx;
+                int z0 = 16 * cz;
+                localTop.offer(x0, z0, (double)s);
+            }
+        }
+
+        return localTop;
+    }
+
     public static void main(String[] argv) throws Exception {
         Args args;
         try {
@@ -243,125 +347,40 @@ public final class SlimeFinder {
 
         // --- No longer support --verify-biomes or --in/--out; always run fast search, write before_validation.csv, then validate if requested ---
 
-        // width of center grid in chunks
-        final int width = 2 * m + 1;
-
         // fixed thread pool (lower overhead than per-row fork/join futures here)
         ExecutorService exec = Executors.newFixedThreadPool(args.threads);
 
         TopK top = new TopK(args.topk);
 
-        // Sweep centers by z-tiles
+        // --- Fast search (tile-parallel). One task per tile; much lower overhead than kzBlock futures. ---
+
         final int tileRows = Math.max(1, args.tileRows);
         final int tileCols = Math.max(1, args.tileCols);
-        final int kzBlock = Math.max(1, args.kzBlock);
 
-        for (int cz0 = -m; cz0 <= m; cz0 += tileRows) {
-            final int cz1 = Math.min(m, cz0 + tileRows - 1);
-            final int cz0Final = cz0;
-            final int cz1Final = cz1;
-            final int tileH = (cz1 - cz0 + 1);
+        // Build tiles for full square or ring (skipping tiles fully inside inner square).
+        List<Tile> tiles = buildTiles(m, innerFinal, tileRows, tileCols);
+        // Shuffle to improve load-balance (tiles can vary slightly in cost).
+        Collections.shuffle(tiles);
 
-            // Contributing slime chunks in Z for this band:
-            final int kzMin = cz0Final - CR;
-            final int kzMax = cz1Final + CR;
+        // Create a single bounded Args instance for this search so we don't allocate per tile.
+        final Args bounded = args;
 
-            // Now tile across X to keep stripe arrays small
-            for (int cx0 = -m; cx0 <= m; cx0 += tileCols) {
-                final int cx1 = Math.min(m, cx0 + tileCols - 1);
-                final int cx0Final = cx0;
-                final int cx1Final = cx1;
-                // Ring search optimization: if this entire tile (X range and Z range) is inside the inner square,
-                // skip computing its stripes entirely.
-                if (innerFinal > 0
-                        && cx0Final >= -innerFinal && cx1Final <= innerFinal
-                        && cz0Final >= -innerFinal && cz1Final <= innerFinal) {
-                    // Do not print "Processed tile" for skipped tiles.
-                    continue;
-                }
-                final int tileW = (cx1 - cx0 + 1);
-                final int stripeSize = tileW * tileH;
+        CompletionService<TileResult> cs = new ExecutorCompletionService<>(exec);
+        for (Tile t : tiles) {
+            cs.submit(() -> new TileResult(t, processTile(t, bounded, kernel)));
+        }
 
-                // Contributing slime chunks in X for this band:
-                int kxMin = cx0Final - CR;
-                int kxMax = cx1Final + CR;
-                // Clamp to global contributing range
-                int globalKxMin = -m - CR;
-                int globalKxMax =  m + CR;
-                if (kxMin < globalKxMin) kxMin = globalKxMin;
-                if (kxMax > globalKxMax) kxMax = globalKxMax;
+        for (int i = 0; i < tiles.size(); i++) {
+            Future<TileResult> f = cs.take();
+            TileResult tr = f.get();
 
-                // Partition kz range into blocks; each task produces its own local stripe short[]
-                List<Future<short[]>> futures = new ArrayList<>();
-                for (int kzStart = kzMin; kzStart <= kzMax; kzStart += kzBlock) {
-                    final int ks = kzStart;
-                    final int ke = Math.min(kzMax, kzStart + kzBlock - 1);
-
-                    final int kxMinFinal = kxMin;
-                    final int kxMaxFinal = kxMax;
-
-                    futures.add(exec.submit(() -> {
-                        short[] local = new short[stripeSize];
-
-                        for (int kz = ks; kz <= ke; kz++) {
-                            for (int kx = kxMinFinal; kx <= kxMaxFinal; kx++) {
-                                if (!SlimeChunk.isSlimeChunk(args.seed, kx, kz)) continue;
-
-                                // Scatter +1 to every center whose 128-block circle intersects this chunk
-                                for (int dz = -CR; dz <= CR; dz++) {
-                                    int cz = kz - dz;
-                                    if (cz < cz0Final || cz > cz1Final) continue;
-
-                                    int row = (cz - cz0Final) * tileW;
-                                    for (int dx = -CR; dx <= CR; dx++) {
-                                        int cx = kx - dx;
-                                        if (cx < cx0Final || cx > cx1Final) continue;
-
-                                        if (!kernel.intersects(dx, dz)) continue;
-
-                                        int col = cx - cx0Final;
-                                        int idx = row + col;
-                                        local[idx] = (short)(local[idx] + 1);
-                                    }
-                                }
-                            }
-                        }
-
-                        return local;
-                    }));
-                }
-
-                short[] stripe = new short[stripeSize];
-                for (Future<short[]> f : futures) {
-                    short[] local = f.get();
-                    for (int i = 0; i < stripeSize; i++) {
-                        stripe[i] = (short)(stripe[i] + local[i]);
-                    }
-                }
-
-                final double thr = args.threshold;
-                for (int r = 0; r < tileH; r++) {
-                    int cz = cz0 + r;
-                    int base = r * tileW;
-                    for (int c = 0; c < tileW; c++) {
-                        int s = stripe[base + c] & 0xFFFF;
-                        if (s < (int)thr) continue;
-
-                        int cx = cx0 + c;
-
-                        // Ring search: skip centers that are inside the inner square
-                        if (innerFinal > 0 && Math.abs(cx) <= innerFinal && Math.abs(cz) <= innerFinal) {
-                            continue;
-                        }
-
-                        int x0 = 16 * cx;
-                        int z0 = 16 * cz;
-                        top.offer(x0, z0, (double)s);
-                    }
-                }
-
-                System.out.println("Processed tile: z[" + cz0 + "," + cz1 + "] x[" + cx0 + "," + cx1 + "]");
+            // Merge local topK into global topK.
+            for (TopK.Item it : tr.top().toSortedListDesc()) {
+                top.offer(it.x, it.z, it.score);
             }
+
+            Tile tt = tr.tile();
+            System.out.println("Processed tile: z[" + tt.cz0() + "," + tt.cz1() + "] x[" + tt.cx0() + "," + tt.cx1() + "]");
         }
 
         exec.shutdown();

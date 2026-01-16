@@ -73,6 +73,12 @@ Optional (for biome validation):
 
 ## ▶️ How to Run
 
+### Cloning the repository
+
+In the terminal, do:
+1. `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
+2. `cd Slimefinder`
+
 ### Basic (No Biome Validation)
 
 ```bash
