@@ -4,7 +4,8 @@ SlimeFinder is a **high-performance Minecraft Java Edition slime chunk finder** 
 
 This tool is optimized for **speed, parallelism, and correctness**, and is capable of **outperforming existing tools such as _slimy_** for large-scale searches.
 
-**Demonstration Videos coming soon!**
+**Demonstration Video in Mac:** https://youtu.be/e105Z5gf0tI
+**Demonstration Video in Windows coming soon!**
 
 ---
 
