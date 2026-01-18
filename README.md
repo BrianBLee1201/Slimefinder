@@ -46,7 +46,7 @@ Tested on:
 
 - **Apple M3 Max**
 - **36 GB unified memory**
-- Java 17 (you must include Java 17. Any other versions are not supported.)
+- Java 17
 - macOS
 
 On this machine:
@@ -59,40 +59,67 @@ Your results may vary depending on CPU, memory, and thread count.
 
 ## 📦 Requirements
 
-- Java **17+**
+- Java **17 (you must include Java 17. Any other versions are not supported.)**
 - Gradle (wrapper included)
-- macOS / Linux (Windows may work with minor adjustments)
 
-Optional (for biome validation):
-- Cubiomes native wrapper (built per OS/CPU)
-- Cubiomes-compatible Minecraft version ID
-
-⚠️ **Warning:** I had not fully tested this in Windows and Linux. If you have issues running in Windows or Linux, then let me know.
+⚠️ **Warning:** I had not fully tested this in Linux. If you have issues running in Linux, then let me know.
 
 ---
 
 ## ▶️ How to Run
 
-### Cloning the repository
+### 0) Clone the repository (with submodules)
 
-In the terminal, do:
-1. `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
-2. `cd Slimefinder`
+```bash
+git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git
+cd Slimefinder
+```
 
-### Basic (No Biome Validation)
+If `external/cubiomes/cubiomes` is empty, run:
+```bash
+git submodule update --init --recursive
+```
 
+### 1) (Optional) Build the Cubiomes wrapper for biome validation
+
+If you want `--biomes` validation, build the native wrapper first (see the **🧩 Building the Cubiomes Native Wrapper** section below).  
+If you do not need biome validation, you can skip this and run the basic mode.
+
+### 2) Basic (No Biome Validation)
+
+macOS / Linux:
 ```bash
 ./gradlew run --args="--seed <SEED> --m-chunks <M>"
 ```
+
+Windows (CMD / PowerShell):
+```bat
+gradlew run --args="--seed <SEED> --m-chunks <M>"
+```
+
 Example:
 ```bash
 ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
 ```
+The command above:
+- sets seed to 11868470311385
+- searches chunks (square) within 10000 chunks
+- records (x, z) coordinates and their scores to `before_validation.csv`
+- Uses 8 threads
+
 This produces:
 - `before_validation.csv`
-- `results.csv` (same as `before_validation.csv`)
+- `results.csv` (same as `before_validation.csv` when biome validation is OFF)
 
-### With Biome Validation (Deep Dark & Mushroom Fields)
+### 3) With Biome Validation (Deep Dark & Mushroom Fields)
+
+After building the wrapper, pass the correct library for your OS:
+
+- macOS: `native/build/libcubiomeswrap.dylib`
+- Linux: `native/build/libcubiomeswrap.so`
+- Windows: `native\build\libcubiomeswrap.dll` (and ensure `libwinpthread-1.dll` is alongside it; see FAQ)
+
+Run:
 
 ```bash
 ./gradlew run --args="
@@ -108,7 +135,8 @@ This produces:
   --cubiomes-mc 125
 "
 ```
-Example:
+
+Example (macOS):
 ```bash
 ./gradlew run --args="
   --seed 11868470311385
@@ -119,59 +147,12 @@ Example:
   --biomes
   --farm-y -64
   --samples 4
-  --cubiomes-lib <path-to-built-cubiomeswrap>
+  --cubiomes-lib native/build/libcubiomeswrap.dylib
   --cubiomes-mc 125
 "
 ```
-## 🧩 Building the Cubiomes Native Wrapper (Required for Biome Validation)
 
-Biome validation in SlimeFinder requires a native dynamic library that must be compiled locally for your operating system and CPU. This wrapper is needed so SlimeFinder can call Cubiomes code for biome detection. The output file will be:
-- `.dylib` on macOS
-- `.so` on Linux
-- `.dll` on Windows
-
-**Note:** Simply renaming a `.dylib` file to `.so` or `.dll` will NOT work. You must build the wrapper natively for your platform and architecture.
-
-### 1. Initialize Submodules
-
-Make sure the Cubiomes source code is present:
-```bash
-git submodule update --init --recursive
-```
-Check that `external/cubiomes/cubiomes` contains `.c` source files. If the folder is empty, the submodule was not initialized.
-
-### 2. Build on macOS / Linux
-
-From the project root, run:
-```bash
-cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
-cmake --build native/build
-```
-This produces:
-- `native/build/libcubiomeswrap.dylib` (macOS)
-- `native/build/libcubiomeswrap.so` (Linux)
-
-### 3. Build on Windows (MSYS2 MinGW64 recommended)
-
-1. [Install MSYS2](https://www.msys2.org/) and open the **MSYS2 MinGW64** terminal.
-2. Install the MinGW64 toolchain if not already present.
-3. From the project root, run:
-```bash
-cmake -S native -B native/build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build native/build
-```
-This produces:  
-`native/build/cubiomeswrap.dll`
-
-### 4. Using the Built Library
-
-When running SlimeFinder with biome validation, pass the correct file path to `--cubiomes-lib`:
-- **macOS:** `--cubiomes-lib native/build/libcubiomeswrap.dylib`
-- **Linux:** `--cubiomes-lib native/build/libcubiomeswrap.so`
-- **Windows:** `--cubiomes-lib native/build/cubiomeswrap.dll`
-
-Make sure the path and file extension match your OS and that the file is built for your CPU architecture.
-Here is the workflow:
+Workflow:
 1. Fast search ignoring biomes → `before_validation.csv`
 2. Validate each candidate against biomes
 3. Write final filtered results → `results.csv`
@@ -191,6 +172,82 @@ x,z,score
 **`results.csv`**
 
 Final biome-validated results (filtered + updated scores).
+
+
+---
+
+## 🧩 Building the Cubiomes Native Wrapper (Required for Biome Validation)
+
+This section explains how to build the native Cubiomes wrapper library required for biome validation. The library must be built for your platform and placed in the `native/build` folder.
+
+### 1. Build on macOS / Linux
+
+**For Linux Users:** Run:
+
+```bash
+sudo apt-get install -y build-essential cmake
+```
+
+This installs cmake.
+
+**For macOS/Linux Users:** Run:
+
+```bash
+cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+cmake --build native/build --config Release
+```
+
+This produces `libcubiomeswrap.dylib` on macOS or `libcubiomeswrap.so` on Linux.
+
+### 2. Build on Windows (MSYS2 MinGW64 recommended)
+
+**Important:** The following Windows build instructions must be run inside the **MSYS2 MinGW64 terminal**. Do not use Windows CMD or PowerShell for these commands, as the environment and toolchain differ.
+
+#### Install build tools
+
+Open the MSYS2 MinGW64 terminal and run:
+
+```bash
+pacman -Syu
+pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-make
+```
+
+This installs the necessary compiler, CMake, and make tools.
+
+#### Change directory to the Slimefinder repo
+
+From the MSYS2 MinGW64 terminal, navigate to your Slimefinder repository folder, for example:
+
+```bash
+cd /c/Users/<USERNAME>/Downloads/Slimefinder/native
+```
+
+Replace `<USERNAME>` with your Windows username.
+
+#### Build commands
+
+```bash
+cmake -S native -B native/build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build native/build
+```
+
+After build:
+
+```bash
+ls native/build
+```
+
+You should see the DLL file named **`libcubiomeswrap.dll`** inside the `native/build` directory.
+
+#### Using the Built Library
+
+- macOS / Linux: Use the path to `libcubiomeswrap.dylib` or `libcubiomeswrap.so`, e.g.:
+  `--cubiomes-lib native/build/libcubiomeswrap.dylib`
+
+- **Windows:** Use the path to the DLL as:
+  `--cubiomes-lib native\build\libcubiomeswrap.dll`
+
+  **Note:** The DLL may load correctly when running inside the MSYS2 MinGW64 terminal but fail when running from Windows CMD or PowerShell due to missing MinGW runtime dependencies. If you encounter loading errors, copy the `libwinpthread-1.dll` file from your MSYS2 installation's `mingw64\bin` folder (typically `C:\msys64\mingw64\bin`) into the `native\build\` directory alongside `libcubiomeswrap.dll`. This ensures the required runtime is available when running outside MSYS2.
 
 ## ⚙️ Parameters Explained
 
@@ -241,6 +298,21 @@ For the printed **Top** result, SlimeFinder reports:
 
 The sum of contributing chunks **exactly matches the printed score.**
 
+---
+
+## 📊 Chunk Breakdown Explained
+
+For the printed **Top** result, SlimeFinder reports:
+- **Full chunks**: chunk fully inside the 128-block sphere
+- **Partial chunks**: chunk partially intersecting the sphere
+- **Biome-ok**: no Deep Dark / Mushroom Fields
+- **Partial biome**: some samples blocked
+- **Fully blocked**: excluded entirely from score
+
+The sum of contributing chunks **exactly matches the printed score.**
+
+---
+
 ## 🔍 FAQs and Troubleshooting
 
 1. **Does this work on Bedrock Edition:** Unfortunately, no. The code that finds slime chunks is completely different from Java.
@@ -257,10 +329,28 @@ The sum of contributing chunks **exactly matches the printed score.**
 to see usage and examples.
 
 7. **Why do we pick one point of a chunk instead of sampling all points within a square:** to improve performance. A chunk is a 16x320x16 area. There are 256 squares in a chunk at a fixed y level, and sampling all points and calculating would sharply increase computational time.
+
 8. **Why is the cubiomes folder empty:** you need to git clone _recursively_: `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
 
-9. **On Windows or Linux, I get `[ERROR] Biome validation requires cubiomes backend. Failed to load.`**
-   - This usually means the native Cubiomes wrapper was not built, or you are trying to use the wrong file type or a library built for a different architecture or OS. Double-check you built the native wrapper for your platform and are passing the correct path and extension to `--cubiomes-lib`.
+9. **[WINDOWS] CMake Error: unable to find a build program corresponding to ‘MinGW Makefiles’:** This error usually occurs if you try to build the native wrapper on Windows without using the MSYS2 MinGW64 terminal or if the required MinGW toolchain is not installed.
+
+  **Fix:** Install MSYS2 and run the build commands inside the MSYS2 MinGW64 terminal. Also ensure you have installed the MinGW toolchain and build tools via:
+  ```bash
+  pacman -Syu
+  pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-make
+  ```
+  Then rerun the build commands from within MSYS2 MinGW64.
+
+10. **[WINDOWS] Biome validation works in MinGW64 terminal but fails in Windows CMD/PowerShell:** This happens because the MinGW runtime dependency `libwinpthread-1.dll` is not found when running outside MSYS2.
+
+**Fix:** Run:
+```bash
+where libwinpthread-1.dll
+```
+
+Then copy `libwinpthread-1.dll` from the MSYS2 `mingw64\bin` directory (usually `C:\msys64\mingw64\bin`) into the `native\build\` folder alongside `libcubiomeswrap.dll`, or ensure your system PATH includes the MSYS2 `mingw64\bin` directory when running SlimeFinder.
+
+---
 
 ## 🔮 Long-Term Plans & Version Support
 
@@ -289,7 +379,6 @@ Planned and potential improvements include:
   - Better work-stealing strategies
   - Adaptive tiling based on memory pressure
   - Optional GPU-assisted exploration experiments (research-only)
-  
 - **Calculating the chunk statistics at one single point**
   - Giving overview of how many chunks covered, including partial deep dark and mushroom fields biomes.
 
@@ -328,4 +417,6 @@ The idea (not code) of sampling a representative point per chunk instead of all 
 
 ### ❤️ Community Knowledge
 
-This project would not be possible without the Minecraft technical community, modders, and researchers who documented and reverse-engineered game mechanics over many years.
+This project would not be possible without the Minecraft technical community, modders, and researchers who documented and reverse-engineered game mechanics over many years.he `native/build` directory.
+
+---

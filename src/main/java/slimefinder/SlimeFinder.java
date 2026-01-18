@@ -24,7 +24,7 @@ public final class SlimeFinder {
         boolean biomes = false;
         boolean biomeDebug = false;
         int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
-        String cubiomesLib = "./libcubiomeswrap.dylib";
+        String cubiomesLib = "";
         int cubiomesMc = 125;
 
         // performance knobs
@@ -56,7 +56,7 @@ public final class SlimeFinder {
           --biomes               Validate Deep Dark + Mushroom Fields after fast search
           --farm-y <int>         Y level for biome checks (default -64)
           --samples <int>        Samples per axis per chunk (default 4)
-          --cubiomes-lib <path>  Path to libcubiomeswrap.dylib (default ./libcubiomeswrap.dylib)
+          --cubiomes-lib <path>  Path to libcubiomeswrap.dylib (default empty)
           --cubiomes-mc <int>    Cubiomes MC version id (default 125)
 
         Performance tuning (optional):
