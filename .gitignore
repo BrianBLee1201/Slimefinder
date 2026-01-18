@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+
+# Native builds (CMake / Make)
+native/build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+
+# Output files
+before_validation.csv
+results.csv
+*.csv
+
+# Editor/OS
+.DS_Store
+.vscode/
