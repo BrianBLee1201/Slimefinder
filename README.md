@@ -4,6 +4,8 @@ SlimeFinder is a **high-performance Minecraft Java Edition slime chunk finder** 
 
 This tool is optimized for **speed, parallelism, and correctness**, and is capable of **outperforming existing tools such as _slimy_** for large-scale searches.
 
+**Demonstration Videos coming soon!**
+
 ---
 
 ## ✨ What This Tool Does
@@ -274,18 +276,8 @@ You should see the DLL file named **`libcubiomeswrap.dll`** inside the `native/b
 | `--biomes` | Enable biome validation |
 | `--farm-y` | Y-level used for biome sampling (default: -64)|
 | `--samples` | Samples per axis per chunk (default: 4, total 16)|
-| `--cubiomes-lib` | Path to `libcubiomeswrap.dylib`|
+| `--cubiomes-lib` | Path to a Cubiomes Native library (you need to build it)|
 | `--cubiomes-mc` | Cubiomes Minecraft version ID (e.g. 125 for 1.21.x)|
-
-### Performance / Advanced Tuning
-
-| Flag | Description |
-| --- | ---|
-| `--tile-rows` | Z-rows per tile (default: 512) |
-| `--tile-cols` | X-columns per tile (default: 4096)|
-| `--kz-block` | Z-block size for kernel reuse (default: 64)|
-
-These options help control memory usage for **very large searches** (e.g. 100k chunks).
 
 ## 📊 Chunk Breakdown Explained
 
