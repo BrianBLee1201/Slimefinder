@@ -219,10 +219,10 @@ This installs the necessary compiler, CMake, and make tools.
 From the MSYS2 MinGW64 terminal, navigate to your Slimefinder repository folder, for example:
 
 ```bash
-cd /c/Users/<USERNAME>/Downloads/Slimefinder/native
+cd /c/Users/<PATH_TO>/Slimefinder
 ```
 
-Replace `<USERNAME>` with your Windows username.
+Replace `<PATH_TO>` with your current path that leads to Slimefinder.
 
 #### Build commands
 
@@ -286,19 +286,6 @@ You should see the DLL file named **`libcubiomeswrap.dll`** inside the `native/b
 | `--kz-block` | Z-block size for kernel reuse (default: 64)|
 
 These options help control memory usage for **very large searches** (e.g. 100k chunks).
-
-## 📊 Chunk Breakdown Explained
-
-For the printed **Top** result, SlimeFinder reports:
-- **Full chunks**: chunk fully inside the 128-block sphere
-- **Partial chunks**: chunk partially intersecting the sphere
-- **Biome-ok**: no Deep Dark / Mushroom Fields
-- **Partial biome**: some samples blocked
-- **Fully blocked**: excluded entirely from score
-
-The sum of contributing chunks **exactly matches the printed score.**
-
----
 
 ## 📊 Chunk Breakdown Explained
 

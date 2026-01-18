@@ -66,7 +66,7 @@ public final class SlimeFinder {
 
         Examples:
           ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
-          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib ./libcubiomeswrap.dylib --cubiomes-mc 125"
+          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --cubiomes-mc 125"
 
         Tip:
           ./gradlew run --args="--help"
