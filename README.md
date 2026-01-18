@@ -64,7 +64,7 @@ Your results may vary depending on CPU, memory, and thread count.
 - macOS / Linux (Windows may work with minor adjustments)
 
 Optional (for biome validation):
-- `libcubiomeswrap.dylib`
+- Cubiomes native wrapper (built per OS/CPU)
 - Cubiomes-compatible Minecraft version ID
 
 ⚠️ **Warning:** I had not fully tested this in Windows and Linux. If you have issues running in Windows or Linux, then let me know.
@@ -104,7 +104,7 @@ This produces:
   --biomes
   --farm-y -64
   --samples 4
-  --cubiomes-lib ./libcubiomeswrap.dylib
+  --cubiomes-lib <path-to-built-cubiomeswrap>
   --cubiomes-mc 125
 "
 ```
@@ -119,10 +119,58 @@ Example:
   --biomes
   --farm-y -64
   --samples 4
-  --cubiomes-lib ./libcubiomeswrap.dylib
+  --cubiomes-lib <path-to-built-cubiomeswrap>
   --cubiomes-mc 125
 "
 ```
+## 🧩 Building the Cubiomes Native Wrapper (Required for Biome Validation)
+
+Biome validation in SlimeFinder requires a native dynamic library that must be compiled locally for your operating system and CPU. This wrapper is needed so SlimeFinder can call Cubiomes code for biome detection. The output file will be:
+- `.dylib` on macOS
+- `.so` on Linux
+- `.dll` on Windows
+
+**Note:** Simply renaming a `.dylib` file to `.so` or `.dll` will NOT work. You must build the wrapper natively for your platform and architecture.
+
+### 1. Initialize Submodules
+
+Make sure the Cubiomes source code is present:
+```bash
+git submodule update --init --recursive
+```
+Check that `external/cubiomes/cubiomes` contains `.c` source files. If the folder is empty, the submodule was not initialized.
+
+### 2. Build on macOS / Linux
+
+From the project root, run:
+```bash
+cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+cmake --build native/build
+```
+This produces:
+- `native/build/libcubiomeswrap.dylib` (macOS)
+- `native/build/libcubiomeswrap.so` (Linux)
+
+### 3. Build on Windows (MSYS2 MinGW64 recommended)
+
+1. [Install MSYS2](https://www.msys2.org/) and open the **MSYS2 MinGW64** terminal.
+2. Install the MinGW64 toolchain if not already present.
+3. From the project root, run:
+```bash
+cmake -S native -B native/build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build native/build
+```
+This produces:  
+`native/build/cubiomeswrap.dll`
+
+### 4. Using the Built Library
+
+When running SlimeFinder with biome validation, pass the correct file path to `--cubiomes-lib`:
+- **macOS:** `--cubiomes-lib native/build/libcubiomeswrap.dylib`
+- **Linux:** `--cubiomes-lib native/build/libcubiomeswrap.so`
+- **Windows:** `--cubiomes-lib native/build/cubiomeswrap.dll`
+
+Make sure the path and file extension match your OS and that the file is built for your CPU architecture.
 Here is the workflow:
 1. Fast search ignoring biomes → `before_validation.csv`
 2. Validate each candidate against biomes
@@ -211,6 +259,9 @@ to see usage and examples.
 7. **Why do we pick one point of a chunk instead of sampling all points within a square:** to improve performance. A chunk is a 16x320x16 area. There are 256 squares in a chunk at a fixed y level, and sampling all points and calculating would sharply increase computational time.
 8. **Why is the cubiomes folder empty:** you need to git clone _recursively_: `git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git`
 
+9. **On Windows or Linux, I get `[ERROR] Biome validation requires cubiomes backend. Failed to load.`**
+   - This usually means the native Cubiomes wrapper was not built, or you are trying to use the wrong file type or a library built for a different architecture or OS. Double-check you built the native wrapper for your platform and are passing the correct path and extension to `--cubiomes-lib`.
+
 ## 🔮 Long-Term Plans & Version Support
 
 SlimeFinder is designed with **long-term extensibility** in mind. While the current focus is on modern Minecraft Java Edition versions (tested primarily around 1.21.x), future updates aim to broaden compatibility and functionality.
@@ -238,12 +289,7 @@ Planned and potential improvements include:
   - Better work-stealing strategies
   - Adaptive tiling based on memory pressure
   - Optional GPU-assisted exploration experiments (research-only)
-- **Windows and Linux Support**
-  - Currently, I am trying to fix the `[ERROR] Biome validation requires cubiomes backend. Failed to load.` message in Windows, even if `external/cubiomes` folder is not empty. So far I speculate it might be a hardware incompatibility. **This means you are not able to run the biome check, so you will want to verify each and every (x, z) coordinates manually**.
-- **Searching from a specific margin**
-  - Computing at the borders without needing to recalculate the whole square that you know do not have enough slime chunks coverage
-  - Given a small square of length `m` and a large square of length `o`, it searches from the square ring with size `o-m` instead of searching the entire square with size `o`, which saves performance.
-  - The world border occurs 30M blocks from (0, 0), so if you normally run the square with 1875000 chunks, it will take really long time. This is why I plan on searching throught the border instead of the entire square.
+  
 - **Calculating the chunk statistics at one single point**
   - Giving overview of how many chunks covered, including partial deep dark and mushroom fields biomes.
 
