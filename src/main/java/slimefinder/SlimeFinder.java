@@ -59,11 +59,6 @@ public final class SlimeFinder {
           --cubiomes-lib <path>  Path to libcubiomeswrap.dylib (default empty)
           --cubiomes-mc <int>    Cubiomes MC version id (default 125)
 
-        Performance tuning (optional):
-          --tile-rows <int>      (default 512)
-          --tile-cols <int>      (default 4096)
-          --kz-block <int>       (default 64)
-
         Examples:
           ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
           ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --cubiomes-mc 125"
@@ -113,11 +108,6 @@ public final class SlimeFinder {
                           --biome-debug
                           --cubiomes-lib <path>
                           --cubiomes-mc <int>
-
-                        Perf tuning:
-                          --tile-rows <int>   (default 512)
-                          --tile-cols <int>   (default 4096)
-                          --kz-block <int>    (default 64)
 
                         Notes:
                           - Radius is fixed at 128 blocks (circle).
