@@ -30,7 +30,6 @@ public final class SlimeFinder {
         // performance knobs
         int tileRows = 512;      // z-tiling height in centers (chunks). 512 is a good default.
         int tileCols = 4096;    // x-tiling width in centers (chunks). Keeps stripe arrays small.
-        int kzBlock = 64;        // each worker gets kz blocks of this height in contributing-chunk space.
 
         // Fixed output paths
         final String beforePath = "before_validation.csv";
@@ -88,11 +87,6 @@ public final class SlimeFinder {
                 case "--cubiomes-lib" -> { a.cubiomesLib = require(v, k); i++; }
                 case "--cubiomes-mc" -> { a.cubiomesMc = Integer.parseInt(require(v, k)); i++; }
 
-                // optional tuning
-                case "--tile-rows" -> { a.tileRows = Integer.parseInt(require(v, k)); i++; }
-                case "--tile-cols" -> { a.tileCols = Integer.parseInt(require(v, k)); i++; }
-                case "--kz-block" -> { a.kzBlock = Integer.parseInt(require(v, k)); i++; }
-
                 case "--help" -> {
                     System.out.println("""
                         SlimeFinder (Java, fast scatter)
@@ -114,6 +108,7 @@ public final class SlimeFinder {
                           - Candidate centers are chunk-aligned (x=16*cx, z=16*cz).
                           - Default search is naive integer scoring (counts slime chunks intersecting circle).
                           - The program always writes all top-k candidates to before_validation.csv, then (if --biomes) validates and writes results.csv.
+                          - Tiling parameters are internal defaults (not user-configurable).
                         """);
                     System.exit(0);
                 }
@@ -342,7 +337,7 @@ public final class SlimeFinder {
 
         TopK top = new TopK(args.topk);
 
-        // --- Fast search (tile-parallel). One task per tile; much lower overhead than kzBlock futures. ---
+        // Tiling parameters are internal defaults (not exposed as CLI flags).
 
         final int tileRows = Math.max(1, args.tileRows);
         final int tileCols = Math.max(1, args.tileCols);
