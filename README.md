@@ -63,10 +63,34 @@ Your results may vary depending on CPU, memory, and thread count.
 
 ## 📦 Requirements
 
-- Java **17 (you must include Java 17. Any other versions are not supported.)**
-- Gradle (wrapper included)
+- Java **17** (required; other versions are not supported)
+- **Git** (required for cloning the repository and submodules)
+- **CMake** (required for building the Cubiomes native wrapper when using biome validation)
+- Gradle (wrapper included; no separate installation required)
 
 ⚠️ **Warning:** I had not fully tested this in Linux. If you have issues running in Linux, then let me know.
+
+### Installing Prerequisites
+
+You must install **Git** and **CMake** manually before running SlimeFinder.  
+If these tools are missing, your terminal may report errors such as `command not found` or fail during the native build step.
+
+- **Git**
+  - Download: https://git-scm.com/install
+  - Windows users: Ensure Git is added to your PATH during installation.
+
+- **CMake**
+  - Download: https://cmake.org/download/
+  - Windows users: Make sure to select **"Add CMake to system PATH"** during installation.
+
+After installation, verify both tools are available:
+
+```bash
+git --version
+cmake --version
+```
+
+If either command fails, restart your terminal and re-check your system PATH.
 
 ---
 
@@ -182,6 +206,8 @@ Final biome-validated results (filtered + updated scores).
 
 ## 🧩 Building the Cubiomes Native Wrapper (Required for Biome Validation)
 
+⚠️ This step requires **CMake** to be installed and available in your system PATH.
+
 This section explains how to build the native Cubiomes wrapper library required for biome validation. The library must be built for your platform and placed in the `native/build` folder.
 
 ### 1. Build on macOS / Linux
@@ -292,6 +318,59 @@ For the printed **Top** result, SlimeFinder reports:
 
 The sum of contributing chunks **exactly matches the printed score.**
 
+## 🧩 Minecraft Version Compatibility (1.19+)
+
+SlimeFinder’s **slime chunk detection** is based on the official Java Edition algorithm and is **version-independent**.
+
+However, **biome validation** (`--biomes`) depends on the external biome engine (currently **Cubiomes**) and on the fact that certain biomes prevent slime spawning.
+
+### ✅ Intended Support (Current)
+
+For now, SlimeFinder is intended for **Minecraft Java Edition 1.19 and above**.
+
+- **1.19+**: Deep Dark exists and can impact farm reliability, so biome validation is strongly recommended.
+- **1.19–1.21.11**: Biome validation for **Deep Dark** and **Mushroom Fields** is the primary supported path (when configured with the correct `--cubiomes-mc`).
+
+### ⚠ Notes on Newer Biomes (e.g., Pale Garden)
+
+Minecraft introduces new biomes over time (for example, **Pale Garden** in **1.21.4+**).
+
+- SlimeFinder’s current biome validation focuses on **Deep Dark** and **Mushroom Fields** because they directly affect slime spawning.
+- If a newly introduced biome is not modeled by the current biome engine, SlimeFinder can still remain correct for slime spawning **as long as the blocking-biome checks remain valid** (Deep Dark / Mushroom Fields).
+
+### 🧾 About `--cubiomes-mc`
+
+Cubiomes uses a **numeric Minecraft version ID** internally (for example, `125` for many **1.21.x** builds).  
+This value tells Cubiomes which world-generation rules to apply.
+
+To reduce confusion, below is a **best-effort reference mapping** between common Minecraft Java Edition versions and Cubiomes version IDs.
+
+> ⚠️ **Important Notice**
+>
+> - These mappings are **best-effort and informational**
+> - They may change if Minecraft or Cubiomes updates
+> - Always treat this table as guidance, not a strict guarantee
+
+#### Common Version Mapping (Best-Effort)
+
+| Minecraft Java Edition | Cubiomes Version ID |
+|-----------------------|---------------------|
+| 1.19.x | 119 |
+| 1.20.x | 120 |
+| 1.21.0 – 1.21.11 | 125 |
+
+If your **exact patch version is not listed**:
+
+- Use the **nearest matching major/minor version**  
+  (for example, any `1.21.x` → `125`)
+- Or consult the Cubiomes source/documentation for authoritative values
+
+If you are unsure, feel free to open an issue with:
+- Your Minecraft version
+- Your operating system
+
+and we can help confirm or add a clearer preset.
+
 ---
 
 ## 🔍 FAQs and Troubleshooting
@@ -335,12 +414,12 @@ Then copy `libwinpthread-1.dll` from the MSYS2 `mingw64\bin` directory (usually 
 
 ## 🔮 Long-Term Plans & Version Support
 
-SlimeFinder is designed with **long-term extensibility** in mind. While the current focus is on modern Minecraft Java Edition versions (tested primarily around 1.21.x), future updates aim to broaden compatibility and functionality.
+SlimeFinder is designed with **long-term extensibility** in mind. While the current focus is on **Minecraft Java Edition 1.19+** (tested primarily around **1.21.x**), future updates aim to broaden compatibility and functionality.
 
 Planned and potential improvements include:
 
 - **Support for additional Minecraft Java versions**
-  - Older versions (e.g. 1.18–1.20) with different biome layouts
+  - Older versions (e.g. pre 1.18) with different biome layouts
   - Version-specific presets to reduce user configuration errors
 
 - **Expanded biome veto rules**
@@ -351,6 +430,11 @@ Planned and potential improvements include:
   - Clearer mapping between `--cubiomes-mc` values and Minecraft versions
   - Predefined aliases (e.g. `--mc-version 1.21.1`)
   - Optional automatic version detection
+
+- **Optional alternative biome backends (future)**
+  - Cubiomes is fast and reliable for many versions, and the maintainers have their own timelines and priorities.
+  - If Minecraft adds new biome rules that require more up-to-date coverage than our current backend provides, SlimeFinder may optionally support an additional backend (e.g., an AMIDST/toolbox4minecraft-style approach) **without removing Cubiomes support**.
+  - The goal would be to give users more flexibility across versions while staying respectful of and compatible with existing community tools.
 
 - **Additional output formats**
   - JSON output for programmatic use
