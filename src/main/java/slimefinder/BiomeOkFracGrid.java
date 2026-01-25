@@ -17,6 +17,10 @@ public final class BiomeOkFracGrid {
     private final int deepDarkId;
     private final int mushroomFieldsId;
 
+    // NEW:
+    private final boolean blockDeepDark;
+    private final boolean blockMushroomFields;
+
     private final LinkedHashMap<Long, Tile> lru;
     private final int maxTiles;
 
@@ -37,6 +41,12 @@ public final class BiomeOkFracGrid {
         this.tileSizeChunks = tileSizeChunks;
         this.deepDarkId = cb.deepDarkId();
         this.mushroomFieldsId = cb.mushroomFieldsId();
+
+        // NEW:
+        this.blockDeepDark = cb.blocksDeepDark();
+        this.blockMushroomFields = cb.blocksMushroomFields();
+
+
         this.maxTiles = maxTiles;
 
         this.lru = new LinkedHashMap<>(64, 0.75f, true);
@@ -102,12 +112,15 @@ public final class BiomeOkFracGrid {
                     int row = (qz + oz) * quartW;
                     for (int ox = 0; ox < 4; ox++) {
                         int id = plane[row + (qx + ox)];
-                        if (id == deepDarkId || id == mushroomFieldsId) blocked++;
+
+                        boolean isBlocked = (blockDeepDark && id == deepDarkId)
+                                || (blockMushroomFields && id == mushroomFieldsId);
+                        if (isBlocked) blocked++;
                     }
                 }
 
                 int okCount = 16 - blocked;
-                int v = (okCount * 255 + 8) / 16; // rounded
+                int v = (okCount * 255 + 8) / 16;
                 ok[dz * tileSizeChunks + dx] = (byte) v;
             }
         }

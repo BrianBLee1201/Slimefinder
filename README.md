@@ -159,8 +159,8 @@ Run:
   --biomes
   --farm-y -64
   --samples 4
+  --mc-version <ver>
   --cubiomes-lib <path-to-built-cubiomeswrap>
-  --cubiomes-mc 125
 "
 ```
 
@@ -175,8 +175,8 @@ Example (macOS):
   --biomes
   --farm-y -64
   --samples 4
+  --mc-version 1.21.11
   --cubiomes-lib native/build/libcubiomeswrap.dylib
-  --cubiomes-mc 125
 "
 ```
 
@@ -305,7 +305,7 @@ You should see the DLL file named **`libcubiomeswrap.dll`** inside the `native/b
 | `--farm-y` | Y-level used for biome sampling (default: -64)|
 | `--samples` | Samples per axis per chunk (default: 4, total 16)|
 | `--cubiomes-lib` | Path to a Cubiomes Native library (you need to build it)|
-| `--cubiomes-mc` | Cubiomes Minecraft version ID (e.g. 125 for 1.21.x)|
+| `--mc-version` | Minecraft Java version (e.g. `1.21.11`, `1.20.1`, `1.19.4`, `1.18.2`) used to select the correct biome-generation rules |
 
 ## 📊 Chunk Breakdown Explained
 
@@ -318,7 +318,7 @@ For the printed **Top** result, SlimeFinder reports:
 
 The sum of contributing chunks **exactly matches the printed score.**
 
-## 🧩 Minecraft Version Compatibility (1.19+)
+## 🧩 Minecraft Version Compatibility (1.18+)
 
 SlimeFinder’s **slime chunk detection** is based on the official Java Edition algorithm and is **version-independent**.
 
@@ -326,10 +326,10 @@ However, **biome validation** (`--biomes`) depends on the external biome engine 
 
 ### ✅ Intended Support (Current)
 
-For now, SlimeFinder is intended for **Minecraft Java Edition 1.19 and above**.
+For now, SlimeFinder is intended for **Minecraft Java Edition 1.18 and above**.
 
-- **1.19+**: Deep Dark exists and can impact farm reliability, so biome validation is strongly recommended.
-- **1.19–1.21.11**: Biome validation for **Deep Dark** and **Mushroom Fields** is the primary supported path (when configured with the correct `--cubiomes-mc`).
+- **1.18–1.18.2**: Deep Dark does **not** exist; biome validation blocks **Mushroom Fields** only.
+- **1.19+**: Deep Dark exists and can impact farm reliability, so biome validation is strongly recommended (blocks **Deep Dark** + **Mushroom Fields**).
 
 ### ⚠ Notes on Newer Biomes (e.g., Pale Garden)
 
@@ -338,38 +338,27 @@ Minecraft introduces new biomes over time (for example, **Pale Garden** in **1.2
 - SlimeFinder’s current biome validation focuses on **Deep Dark** and **Mushroom Fields** because they directly affect slime spawning.
 - If a newly introduced biome is not modeled by the current biome engine, SlimeFinder can still remain correct for slime spawning **as long as the blocking-biome checks remain valid** (Deep Dark / Mushroom Fields).
 
-### 🧾 About `--cubiomes-mc`
+### 🧾 About `--mc-version`
 
-Cubiomes uses a **numeric Minecraft version ID** internally (for example, `125` for many **1.21.x** builds).  
-This value tells Cubiomes which world-generation rules to apply.
+SlimeFinder accepts a **Minecraft Java Edition version string** via `--mc-version` (for example `1.21.11`).
 
-To reduce confusion, below is a **best-effort reference mapping** between common Minecraft Java Edition versions and Cubiomes version IDs.
+Internally, the Cubiomes backend uses a **numeric version ID** to select world-generation rules. SlimeFinder maps your `--mc-version` to the appropriate Cubiomes ID automatically so you don’t have to.
 
 > ⚠️ **Important Notice**
 >
-> - These mappings are **best-effort and informational**
-> - They may change if Minecraft or Cubiomes updates
-> - Always treat this table as guidance, not a strict guarantee
+> - This mapping is **best-effort** and may evolve as Minecraft and/or the backend libraries change.
+> - If you run into a version that isn’t recognized, please open an issue with your Minecraft version and OS.
 
-#### Common Version Mapping (Best-Effort)
+#### Common Version Families (Best-Effort)
 
-| Minecraft Java Edition | Cubiomes Version ID |
-|-----------------------|---------------------|
-| 1.19.x | 119 |
-| 1.20.x | 120 |
-| 1.21.0 – 1.21.11 | 125 |
+| Minecraft Java Edition | Used internally by backend |
+|-----------------------|----------------------------|
+| 1.18.x | Cubiomes family id `118` |
+| 1.19.x | Cubiomes family id `119` |
+| 1.20.x | Cubiomes family id `120` |
+| 1.21.x (incl. 1.21.0–1.21.11) | Cubiomes family id `125` |
 
-If your **exact patch version is not listed**:
-
-- Use the **nearest matching major/minor version**  
-  (for example, any `1.21.x` → `125`)
-- Or consult the Cubiomes source/documentation for authoritative values
-
-If you are unsure, feel free to open an issue with:
-- Your Minecraft version
-- Your operating system
-
-and we can help confirm or add a clearer preset.
+In practice, SlimeFinder maps by **major.minor** (e.g., any `1.21.*` → the `1.21` family).
 
 ---
 
@@ -425,12 +414,7 @@ Planned and potential improvements include:
 - **Expanded biome veto rules**
   - Optional exclusion of other biomes if future mechanics require it
   - More fine-grained biome classification (e.g. partially safe biomes)
-
-- **Improved Cubiomes integration**
-  - Clearer mapping between `--cubiomes-mc` values and Minecraft versions
-  - Predefined aliases (e.g. `--mc-version 1.21.1`)
-  - Optional automatic version detection
-
+  
 - **Optional alternative biome backends (future)**
   - Cubiomes is fast and reliable for many versions, and the maintainers have their own timelines and priorities.
   - If Minecraft adds new biome rules that require more up-to-date coverage than our current backend provides, SlimeFinder may optionally support an additional backend (e.g., an AMIDST/toolbox4minecraft-style approach) **without removing Cubiomes support**.

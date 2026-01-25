@@ -7,32 +7,32 @@ import com.sun.jna.Pointer;
 import java.io.File;
 import java.util.Objects;
 
-/**
- * BiomeProvider backed by a small C wrapper over Cubitect/cubiomes.
- *
- * Expected exported symbols in libcubiomeswrap.dylib:
- *   void* cbi_new(uint64_t seed, int mc);
- *   void  cbi_free(void* ctx);
- *   int   cbi_is_blocked(void* ctx, int x, int y, int z);
- *
- * isBlocked(x,y,z) returns true for Deep Dark or Mushroom Fields.
- */
 public final class CubiomesBiomeProvider implements BiomeProvider, AutoCloseable {
 
     private interface CubiomesWrap extends Library {
         Pointer cbi_new(long seed, int mc);
         void cbi_free(Pointer ctx);
+
         int cbi_is_blocked(Pointer ctx, int x, int y, int z);
+
         int cbi_gen_quart_plane(Pointer ctx, int qx, int qz, int sx, int sz, int yq, int[] out);
+
         int cbi_biome_id_deep_dark();
         int cbi_biome_id_mushroom_fields();
+
+        // NEW:
+        void cbi_set_block_rules(Pointer ctx, int blockDeepDark, int blockMushroomFields);
     }
 
     private final CubiomesWrap lib;
     private final Pointer ctx;
+
     private final int DEEP_DARK_ID;
     private final int MUSHROOM_FIELDS_ID;
     private final boolean HAS_BIOME_ID_EXPORTS;
+
+    private final boolean blockDeepDark;
+    private final boolean blockMushroomFields;
 
     public int[] genQuartPlane(int qx, int qz, int sx, int sz, int yQuart) {
         int[] out = new int[sx * sz];
@@ -41,7 +41,8 @@ public final class CubiomesBiomeProvider implements BiomeProvider, AutoCloseable
         return out;
     }
 
-    public CubiomesBiomeProvider(long seed, int mc, String libPath) {
+    // NEW constructor with rule selection
+    public CubiomesBiomeProvider(long seed, int mc, String libPath, boolean blockDeepDark, boolean blockMushroomFields) {
         Objects.requireNonNull(libPath, "libPath");
 
         String toLoad = libPath;
@@ -55,6 +56,17 @@ public final class CubiomesBiomeProvider implements BiomeProvider, AutoCloseable
             throw new RuntimeException("cbi_new returned NULL (check seed/mc/libPath)");
         }
 
+        this.blockDeepDark = blockDeepDark;
+        this.blockMushroomFields = blockMushroomFields;
+
+        // Apply rules in native ctx (optional export; keep backwards-compatible):
+        try {
+            lib.cbi_set_block_rules(ctx, blockDeepDark ? 1 : 0, blockMushroomFields ? 1 : 0);
+        } catch (UnsatisfiedLinkError e) {
+            // Older libcubiomeswrap may not export this symbol. In that case,
+            // native defaults apply (typically blocking both).
+        }
+
         int dd = -1;
         int mf = -1;
         boolean has = false;
@@ -63,8 +75,6 @@ public final class CubiomesBiomeProvider implements BiomeProvider, AutoCloseable
             mf = lib.cbi_biome_id_mushroom_fields();
             has = true;
         } catch (UnsatisfiedLinkError e) {
-            // Optional exports may be missing if the dylib wasn't rebuilt.
-            // We can still function using cbi_is_blocked() and/or regenerate the dylib.
             has = false;
         }
         this.DEEP_DARK_ID = dd;
@@ -79,20 +89,14 @@ public final class CubiomesBiomeProvider implements BiomeProvider, AutoCloseable
 
     @Override
     public void close() {
-        try {
-            lib.cbi_free(ctx);
-        } catch (Throwable ignored) {}
+        try { lib.cbi_free(ctx); } catch (Throwable ignored) {}
     }
 
-    public int deepDarkId() {
-        return DEEP_DARK_ID;
-    }
+    public int deepDarkId() { return DEEP_DARK_ID; }
+    public int mushroomFieldsId() { return MUSHROOM_FIELDS_ID; }
+    public boolean hasBiomeIdExports() { return HAS_BIOME_ID_EXPORTS; }
 
-    public int mushroomFieldsId() {
-        return MUSHROOM_FIELDS_ID;
-    }
-
-    public boolean hasBiomeIdExports() {
-        return HAS_BIOME_ID_EXPORTS;
-    }
+    // NEW getters so the grid matches the exact same rule
+    public boolean blocksDeepDark() { return blockDeepDark; }
+    public boolean blocksMushroomFields() { return blockMushroomFields; }
 }

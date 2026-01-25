@@ -11,7 +11,6 @@ public final class SlimeFinder {
 
     private static final int RADIUS_BLOCKS = 128;
     private static final int CR = 8;              // chunk radius for R=128
-    private static final int KSIZE = 17;          // 2*CR+1
 
     public static final class Args {
         long seed;
@@ -25,7 +24,7 @@ public final class SlimeFinder {
         boolean biomeDebug = false;
         int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
         String cubiomesLib = "";
-        int cubiomesMc = 125;
+        String mcVersion = ""; // optional convenience: e.g. 1.21.11, 1.20.1, 1.19.4, 1.18.2
 
         // performance knobs
         int tileRows = 512;      // z-tiling height in centers (chunks). 512 is a good default.
@@ -56,11 +55,11 @@ public final class SlimeFinder {
           --farm-y <int>         Y level for biome checks (default -64)
           --samples <int>        Samples per axis per chunk (default 4)
           --cubiomes-lib <path>  Path to libcubiomeswrap.dylib (default empty)
-          --cubiomes-mc <int>    Cubiomes MC version id (default 125)
+          --mc-version <ver>     Minecraft version (e.g., 1.21.11). Required if --biomes is used.
 
         Examples:
           ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
-          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --cubiomes-mc 125"
+          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --mc-version 1.21.11"
 
         Tip:
           ./gradlew run --args="--help"
@@ -85,7 +84,7 @@ public final class SlimeFinder {
                 case "--biome-debug" -> { a.biomeDebug = true; }
                 case "--threads" -> { a.threads = Integer.parseInt(require(v, k)); i++; }
                 case "--cubiomes-lib" -> { a.cubiomesLib = require(v, k); i++; }
-                case "--cubiomes-mc" -> { a.cubiomesMc = Integer.parseInt(require(v, k)); i++; }
+                case "--mc-version" -> { a.mcVersion = require(v, k).trim(); i++; }
 
                 case "--help" -> {
                     System.out.println("""
@@ -101,7 +100,7 @@ public final class SlimeFinder {
                           --biomes                    (apply biome validation after fast search)
                           --biome-debug
                           --cubiomes-lib <path>
-                          --cubiomes-mc <int>
+                          --mc-version <ver>             (e.g., 1.21.11; required if --biomes is set)
 
                         Notes:
                           - Radius is fixed at 128 blocks (circle).
@@ -126,6 +125,10 @@ public final class SlimeFinder {
         }
         if (a.innerChunks > a.mChunks) {
             throw new IllegalArgumentException("--inner-chunks must be <= --m-chunks");
+        }
+        // Additional validation for biome mode
+        if (a.biomes && (a.mcVersion == null || a.mcVersion.isBlank())) {
+            throw new IllegalArgumentException("--biomes requires --mc-version (e.g., 1.21.11)");
         }
         return a;
     }
@@ -313,6 +316,10 @@ public final class SlimeFinder {
         }
         System.out.println("Window: circle R=128 blocks => chunk radius cr=" + CR + " (kernel 17x17)");
         System.out.println("Biome: " + (args.biomes ? "ON" : "OFF") + " at y=" + args.farmY + ", samples=" + args.samples + "x" + args.samples);
+        if (args.biomes) {
+            String v = (args.mcVersion != null && !args.mcVersion.isBlank()) ? args.mcVersion : "(not set)";
+            System.out.println("Biome backend: mc-version=" + v);
+        }
         System.out.println("Threshold: " + args.threshold);
         System.out.println("Threads: " + args.threads);
 
@@ -323,7 +330,6 @@ public final class SlimeFinder {
         // Phase 1 (fast search) does NOT use biomes.
         BiomeProvider biome = new NoBiomeProvider();
         AutoCloseable biomeCloser = null;
-        BiomeOkFracGrid okGrid = null;
 
         // If we are in verification mode, we will load cubiomes later.
 
@@ -397,11 +403,14 @@ public final class SlimeFinder {
             } else {
                 CubiomesBiomeProvider cb = null;
                 try {
+                    int effectiveMcId = CubiomesMcVersionMap.toCubiomesMcId(args.mcVersion);
+
                     if (args.biomeDebug) {
                         System.out.println("[biome_debug] loading cubiomes biome backend for validation...");
-                        System.out.println("[biome_debug] lib=" + args.cubiomesLib + " mc=" + args.cubiomesMc);
+                        System.out.println("[biome_debug] lib=" + args.cubiomesLib + " mc=" + effectiveMcId
+                                + (args.mcVersion != null && !args.mcVersion.isBlank() ? " (from mc-version " + args.mcVersion + ")" : ""));
                     }
-                    cb = new CubiomesBiomeProvider(args.seed, args.cubiomesMc, args.cubiomesLib);
+                    cb = new CubiomesBiomeProvider(args.seed, effectiveMcId, args.cubiomesLib, (effectiveMcId >= 119) ? true : false, true);
                     biome = cb;
                     biomeCloser = cb;
                 } catch (Throwable t) {
@@ -573,5 +582,58 @@ public final class SlimeFinder {
         }
 
         return blockedSamples == insideSamples;
+    }
+    /**
+     * Convenience mapping from a user-facing Minecraft version string (e.g. 1.21.11)
+     * to the Cubiomes numeric MC version id.
+     *
+     * Notes:
+     * - This mapping is intentionally small and can be extended over time.
+     */
+    private static final class CubiomesMcVersionMap {
+        private CubiomesMcVersionMap() {}
+
+        static int toCubiomesMcId(String mcVersion) {
+            if (mcVersion == null) {
+                throw new IllegalArgumentException("--mc-version is null");
+            }
+            String v = mcVersion.trim();
+            if (v.isEmpty()) {
+                throw new IllegalArgumentException("--mc-version is empty");
+            }
+
+            // Accept inputs like "1.21", "1.21.4", "1.21.11".
+            // We map by major.minor, since cubiomes ids typically apply to a family of patch versions.
+            String[] parts = v.split("\\.");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("Invalid --mc-version: '" + mcVersion + "' (expected like 1.21.11)");
+            }
+
+            int major;
+            int minor;
+            try {
+                major = Integer.parseInt(parts[0]);
+                minor = Integer.parseInt(parts[1]);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid --mc-version: '" + mcVersion + "' (expected like 1.21.11)");
+            }
+
+            if (major != 1) {
+                throw new IllegalArgumentException("Unsupported Minecraft major version in --mc-version: '" + mcVersion + "'");
+            }
+
+            // Known presets (extend as needed).
+            // 1.21.x -> 125 (verified 1.21.11 => 125)
+            if (minor == 21) return 125;
+
+            // Best-effort presets for older families commonly used by players.
+            if (minor == 20) return 120;
+            if (minor == 19) return 119;
+            if (minor == 18) return 118;
+
+            throw new IllegalArgumentException(
+                    "Unknown/unsupported Minecraft version family for --mc-version: '" + mcVersion + "'. "
+                            + "Please open an issue with your version so we can add it.");
+        }
     }
 }
