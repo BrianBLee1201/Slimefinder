@@ -63,40 +63,103 @@ Your results may vary depending on CPU, memory, and thread count.
 
 ## 📦 Requirements
 
-- Java **17** (required; other versions are not supported)
+- Java **17** (required)
+
+**If you download a Release ZIP (recommended):**
+- No additional tools required (just Java 17)
+
+**If you build from source (developers):**
 - **Git** (required for cloning the repository and submodules)
 - **CMake** (required for building the Cubiomes native wrapper when using biome validation)
 - Gradle (wrapper included; no separate installation required)
-
-⚠️ **Warning:** I had not fully tested this in Linux. If you have issues running in Linux, then let me know.
-
-### Installing Prerequisites
-
-You must install **Git** and **CMake** manually before running SlimeFinder.  
-If these tools are missing, your terminal may report errors such as `command not found` or fail during the native build step.
-
-- **Git**
-  - Download: https://git-scm.com/install
-  - Windows users: Ensure Git is added to your PATH during installation.
-
-- **CMake**
-  - Download: https://cmake.org/download/
-  - Windows users: Make sure to select **"Add CMake to system PATH"** during installation.
-
-After installation, verify both tools are available:
-
-```bash
-git --version
-cmake --version
-```
-
-If either command fails, restart your terminal and re-check your system PATH.
 
 ---
 
 ## ▶️ How to Run
 
-### 0) Clone the repository (with submodules)
+SlimeFinder supports two ways to run:
+
+- **A) Run from a Release ZIP (recommended)** — easiest for most players
+- **B) Run from source with Gradle** — for developers and contributors
+
+Both methods produce the same outputs:
+- `before_validation.csv`
+- `results.csv`
+
+---
+
+### A) Run from a Release ZIP (recommended)
+
+1) Download the ZIP for your platform from the GitHub **Releases** page and unzip it.
+
+2) Open a terminal in the unzipped folder (the folder that contains `SlimeFinder.jar`).
+
+#### A1) Basic (No Biome Validation)
+
+```bash
+java -jar SlimeFinder.jar --seed <SEED> --m-chunks <M>
+```
+
+Example:
+```bash
+java -jar SlimeFinder.jar --seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8
+```
+
+This produces:
+- `before_validation.csv`
+- `results.csv` (same as `before_validation.csv` when biome validation is OFF)
+
+#### A2) With Biome Validation (Deep Dark & Mushroom Fields)
+
+Biome validation requires the native Cubiomes wrapper that is included in the Release ZIP under `native/`.
+
+Run:
+
+```bash
+java -jar SlimeFinder.jar \
+  --seed <SEED> \
+  --m-chunks <M> \
+  --inner-chunks <O> \
+  --threshold <T> \
+  --threads <N> \
+  --biomes \
+  --farm-y -64 \
+  --samples 4 \
+  --mc-version <ver> \
+  --cubiomes-lib native/<platform-lib-name>
+```
+
+Platform library names:
+- macOS: `native/libcubiomeswrap.dylib`
+- Linux: `native/libcubiomeswrap.so`
+- Windows: `native\\libcubiomeswrap.dll` (and ensure `native\\libwinpthread-1.dll` is alongside it; see FAQ)
+
+Example (macOS):
+```bash
+java -jar SlimeFinder.jar \
+  --seed 11868470311385 \
+  --m-chunks 10000 \
+  --inner-chunks 5000 \
+  --threshold 50 \
+  --threads 8 \
+  --biomes \
+  --farm-y -64 \
+  --samples 4 \
+  --mc-version 1.21.11 \
+  --cubiomes-lib native/libcubiomeswrap.dylib
+```
+
+Workflow:
+1. Fast search ignoring biomes → `before_validation.csv`
+2. Validate each candidate against biomes
+3. Write final filtered results → `results.csv`
+4. Print the best validated location and chunk breakdown
+
+---
+
+### B) Run from source with Gradle (developers)
+
+#### B0) Clone the repository (with submodules)
 
 ```bash
 git clone --recursive https://github.com/BrianBLee1201/Slimefinder.git
@@ -108,12 +171,7 @@ If `external/cubiomes/cubiomes` is empty, run:
 git submodule update --init --recursive
 ```
 
-### 1) (Optional) Build the Cubiomes wrapper for biome validation
-
-If you want `--biomes` validation, build the native wrapper first (see the **🧩 Building the Cubiomes Native Wrapper** section below).  
-If you do not need biome validation, you can skip this and run the basic mode.
-
-### 2) Basic (No Biome Validation)
+#### B1) Basic (No Biome Validation)
 
 macOS / Linux:
 ```bash
@@ -129,25 +187,10 @@ Example:
 ```bash
 ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
 ```
-The command above:
-- sets seed to 11868470311385
-- searches chunks (square) within 10000 chunks
-- records (x, z) coordinates and their scores to `before_validation.csv`
-- Uses 8 threads
 
-This produces:
-- `before_validation.csv`
-- `results.csv` (same as `before_validation.csv` when biome validation is OFF)
+#### B2) With Biome Validation (Deep Dark & Mushroom Fields)
 
-### 3) With Biome Validation (Deep Dark & Mushroom Fields)
-
-After building the wrapper, pass the correct library for your OS:
-
-- macOS: `native/build/libcubiomeswrap.dylib`
-- Linux: `native/build/libcubiomeswrap.so`
-- Windows: `native\build\libcubiomeswrap.dll` (and ensure `libwinpthread-1.dll` is alongside it; see FAQ)
-
-Run:
+First build the native wrapper (see **🧩 Building the Cubiomes Native Wrapper** below). Then run:
 
 ```bash
 ./gradlew run --args="
@@ -180,11 +223,7 @@ Example (macOS):
 "
 ```
 
-Workflow:
-1. Fast search ignoring biomes → `before_validation.csv`
-2. Validate each candidate against biomes
-3. Write final filtered results → `results.csv`
-4. Print the best validated location and chunk breakdown
+---
 
 ### 🧾 Output Files
 
@@ -197,6 +236,7 @@ x,z,score
 -323632,-187824,50
 ...
 ```
+
 **`results.csv`**
 
 Final biome-validated results (filtered + updated scores).
@@ -209,6 +249,8 @@ Final biome-validated results (filtered + updated scores).
 ⚠️ This step requires **CMake** to be installed and available in your system PATH.
 
 This section explains how to build the native Cubiomes wrapper library required for biome validation. The library must be built for your platform and placed in the `native/build` folder.
+
+> If you downloaded a **Release ZIP**, you can skip this entire section — the native library is already included under `native/`.
 
 ### 1. Build on macOS / Linux
 

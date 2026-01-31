@@ -1,6 +1,8 @@
 plugins {
     id 'application'
     id 'java'
+    // Shadow plugin (fat JAR) — maintained under GradleUp now.
+    id 'com.gradleup.shadow' version '9.3.1'
 }
 
 group = "slimefinder"
@@ -22,6 +24,140 @@ dependencies {
 
 application {
     mainClass = "slimefinder.SlimeFinder"
+}
+
+// Build a single runnable (fat) JAR that includes dependencies (e.g., JNA).
+// Output: build/libs/SlimeFinder.jar
+shadowJar {
+    archiveBaseName.set("SlimeFinder")
+    archiveClassifier.set("")
+    archiveVersion.set("")
+}
+
+// Make `build` produce the runnable jar.
+build.dependsOn(shadowJar)
+
+// --- Option 1 release packaging (ZIP) ---
+// This packages:
+//  - SlimeFinder.jar (fat jar)
+//  - native/build outputs if present (libcubiomeswrap.*)
+//  - README.md and LICENSE
+//
+// Note: native libs are NOT built by default here; they should be produced via CMake.
+// The zip task will include them if they exist.
+
+def detectPlatformTag = { ->
+    String os = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    String arch = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+
+    String osTag
+    if (os.contains('mac') || os.contains('darwin')) osTag = 'macos'
+    else if (os.contains('win')) osTag = 'windows'
+    else osTag = 'linux'
+
+    String archTag
+    if (arch.contains('aarch64') || arch.contains('arm64')) archTag = 'aarch64'
+    else archTag = 'x64'
+
+    return "${osTag}-${archTag}"
+}
+
+def nativeLibNameForCurrentOS = { ->
+    String os = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    if (os.contains('win')) return 'libcubiomeswrap.dll'
+    if (os.contains('mac') || os.contains('darwin')) return 'libcubiomeswrap.dylib'
+    return 'libcubiomeswrap.so'
+}
+
+// Optional convenience task: build the native library via CMake into native/build.
+// Users who only want the Java jar do not need this.
+// On Windows, it is recommended to run this from an MSYS2 MinGW64 shell.
+tasks.register('buildNative', Exec) {
+    group = 'build'
+    description = 'Build native libcubiomeswrap via CMake into native/build.'
+
+    // Ensure build dir exists
+    doFirst {
+        file('native/build').mkdirs()
+    }
+
+    // Configure
+    commandLine 'cmake', '-S', 'native', '-B', 'native/build', '-DCMAKE_BUILD_TYPE=Release'
+}
+
+tasks.register('buildNativeCompile', Exec) {
+    group = 'build'
+    description = 'Compile native libcubiomeswrap via CMake (requires buildNative first).'
+    dependsOn 'buildNative'
+    commandLine 'cmake', '--build', 'native/build', '--config', 'Release'
+}
+
+// ZIP for the current platform/arch.
+tasks.register('packageZip', Zip) {
+    group = 'distribution'
+    description = 'Create a portable ZIP (Option 1) containing SlimeFinder.jar + native lib if present.'
+
+    dependsOn shadowJar
+
+    String tag = detectPlatformTag()
+    archiveBaseName.set("SlimeFinder")
+    archiveClassifier.set(tag)
+    destinationDirectory.set(file("${buildDir}/releases"))
+
+    from(shadowJar.archiveFile) {
+        into('.')
+    }
+
+    // Include README + LICENSE at the top-level
+    from('README.md') { into('.') }
+    from('LICENSE') { into('.') }
+
+    // Include native lib if it exists
+    def libName = nativeLibNameForCurrentOS()
+    def candidatePaths = [
+        file("native/build/${libName}"),
+        file("native/build/Release/${libName}"),
+        file("native/build/lib/${libName}"),
+        file("native/build/native/${libName}"),
+        file("native/build/${libName.replace('lib', '')}")
+    ]
+
+    doFirst {
+        def found = candidatePaths.find { it.exists() }
+        if (found != null) {
+            println "[packageZip] Including native lib: ${found}"
+        } else {
+            println "[packageZip] Native lib not found in native/build (will package jar only). Expected: ${libName}"
+        }
+    }
+
+    candidatePaths.each { f ->
+        if (f.exists()) {
+            from(f) {
+                into('native')
+            }
+        }
+    }
+
+    // If you have extra runtime DLLs on Windows (e.g. libwinpthread-1.dll), put them in native/build and they will be picked up here.
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('win')) {
+        def extra = [
+            file('native/build/libwinpthread-1.dll'),
+            file('native/build/Release/libwinpthread-1.dll')
+        ]
+        extra.each { f ->
+            if (f.exists()) {
+                from(f) { into('native') }
+            }
+        }
+    }
+}
+
+// Handy alias for local use
+tasks.register('releaseLocal') {
+    group = 'distribution'
+    description = 'Build runnable jar and package a platform ZIP (does not build native unless you run buildNativeCompile).'
+    dependsOn 'packageZip'
 }
 
 tasks.withType(JavaCompile).configureEach {

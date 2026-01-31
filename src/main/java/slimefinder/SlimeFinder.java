@@ -36,34 +36,46 @@ public final class SlimeFinder {
     }
 
     private static void printUsage() {
-    System.out.println("""
-        Usage:
-          ./gradlew run --args="--seed <long> --m-chunks <int> [options]"
+        System.out.println("""
+            Usage (recommended — Release ZIP):
+              java -jar SlimeFinder.jar --seed <long> --m-chunks <int> [options]
 
-        Required:
-          --seed <long>          World seed (64-bit)
-          --m-chunks <int>       Search square of centers in chunk coords: [-m,m] x [-m,m]
+            Usage (from source):
+              ./gradlew run --args="--seed <long> --m-chunks <int> [options]"
 
-        Common options:
-          --threshold <double>   Minimum score to keep (default 6.0)
-          --threads <int>        Worker threads (default = CPU count)
-          --topk <int>           Keep top K in before_validation.csv (default 50)
-          --inner-chunks <int>  Skip centers inside [-inner,inner]^2 (default 0; ring search when >0)
+            Required:
+              --seed <long>          World seed (64-bit)
+              --m-chunks <int>       Search square of centers in chunk coords: [-m,m] x [-m,m]
 
-        Biome validation (optional):
-          --biomes               Validate Deep Dark + Mushroom Fields after fast search
-          --farm-y <int>         Y level for biome checks (default -64)
-          --samples <int>        Samples per axis per chunk (default 4)
-          --cubiomes-lib <path>  Path to libcubiomeswrap.dylib (default empty)
-          --mc-version <ver>     Minecraft version (e.g., 1.21.11). Required if --biomes is used.
+            Common options:
+              --threshold <double>   Minimum score to keep (default 6.0)
+              --threads <int>        Worker threads (default = CPU count)
+              --topk <int>           Keep top K in before_validation.csv (default 50)
+              --inner-chunks <int>   Skip centers inside [-inner,inner]^2 (default 0; ring search when >0)
 
-        Examples:
-          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
-          ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --mc-version 1.21.11"
+            Biome validation (optional):
+              --biomes               Validate blocked biomes after fast search (1.18+: Mushroom Fields; 1.19+: Deep Dark + Mushroom Fields)
+              --farm-y <int>         Y level for biome checks (default -64)
+              --samples <int>        Samples per axis per chunk (default 4)
+              --cubiomes-lib <path>  Path to native libcubiomeswrap library (optional; required if --biomes is used)
+                                    - macOS:   native/libcubiomeswrap.dylib
+                                    - Linux:   native/libcubiomeswrap.so
+                                    - Windows: native/libcubiomeswrap.dll
+              --mc-version <ver>     Minecraft version (e.g., 1.21.11, 1.20.1, 1.18.2). Required if --biomes is used.
 
-        Tip:
-          ./gradlew run --args="--help"
-        """);
+            Examples (Release ZIP):
+              java -jar SlimeFinder.jar --seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8
+              java -jar SlimeFinder.jar --seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 \\
+                --biomes --farm-y -64 --samples 4 --cubiomes-lib native/libcubiomeswrap.dylib --mc-version 1.21.11
+
+            Examples (from source):
+              ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8"
+              ./gradlew run --args="--seed 11868470311385 --m-chunks 10000 --threshold 50 --threads 8 --biomes --farm-y -64 --samples 4 --cubiomes-lib native/build/libcubiomeswrap.dylib --mc-version 1.21.11"
+
+            Tip:
+              java -jar SlimeFinder.jar --help
+              ./gradlew run --args="--help"
+            """);
     }
 
     private static Args parseArgs(String[] argv) {
@@ -87,28 +99,7 @@ public final class SlimeFinder {
                 case "--mc-version" -> { a.mcVersion = require(v, k).trim(); i++; }
 
                 case "--help" -> {
-                    System.out.println("""
-                        SlimeFinder (Java, fast scatter)
-                          --seed <long>
-                          --m-chunks <int>
-                          --threshold <double>
-                          --farm-y <int>
-                          --samples <int>
-                          --topk <int>
-                          --threads <int>
-                          --inner-chunks <int>          (default 0; >0 searches only the outer ring)
-                          --biomes                    (apply biome validation after fast search)
-                          --biome-debug
-                          --cubiomes-lib <path>
-                          --mc-version <ver>             (e.g., 1.21.11; required if --biomes is set)
-
-                        Notes:
-                          - Radius is fixed at 128 blocks (circle).
-                          - Candidate centers are chunk-aligned (x=16*cx, z=16*cz).
-                          - Default search is naive integer scoring (counts slime chunks intersecting circle).
-                          - The program always writes all top-k candidates to before_validation.csv, then (if --biomes) validates and writes results.csv.
-                          - Tiling parameters are internal defaults (not user-configurable).
-                        """);
+                    printUsage();
                     System.exit(0);
                 }
                 default -> throw new IllegalArgumentException("Unknown arg: " + k);
