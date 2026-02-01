@@ -95,6 +95,7 @@ public final class SlimeFinder {
                 case "--biomes" -> { a.biomes = true; }
                 case "--biome-debug" -> { a.biomeDebug = true; }
                 case "--threads" -> { a.threads = Integer.parseInt(require(v, k)); i++; }
+                case "--cubiomes-lib" -> { a.cubiomesLib = require(v, k); i++; }
                 case "--mc-version" -> { a.mcVersion = require(v, k).trim(); i++; }
 
                 case "--help" -> {
