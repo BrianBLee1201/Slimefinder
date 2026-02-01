@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+      - "[0-9]*"
 
 permissions:
   contents: write
@@ -12,10 +13,10 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-  strategy:
-    fail-fast: false
-    matrix:
-      os: [ubuntu-latest, windows-latest, macos-14, macos-15-intel]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14, macos-15-intel]
 
     steps:
       - name: Checkout (with submodules)
@@ -80,9 +81,15 @@ jobs:
       # -------------------------
       # Build ZIP (Gradle)
       # -------------------------
-      - name: Build release ZIP (Gradle)
+      - name: Build release ZIP (Gradle) (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           ./gradlew --no-daemon clean packageZip
+
+      - name: Build release ZIP (Gradle) (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\\gradlew.bat --no-daemon clean packageZip
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -111,5 +118,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/build/releases/*.zip
+            dist/**/*.zip
           generate_release_notes: true
