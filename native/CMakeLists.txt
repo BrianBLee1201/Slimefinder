@@ -11,7 +11,8 @@ add_library(cubiomeswrap SHARED
 
 # Include cubiomes core headers
 target_include_directories(cubiomeswrap PRIVATE
-  ${CMAKE_SOURCE_DIR}/../external/cubiomes/cubiomes
+  ${CMAKE_CURRENT_LIST_DIR}/../external/cubiomes
+  ${CMAKE_CURRENT_LIST_DIR}/../external/cubiomes/cubiomes
 )
 
 # Compile cubiomes core sources (ONLY .c files from cubiomes core)
