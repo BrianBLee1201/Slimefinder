@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-13, macos-14 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # --- Linux ---
+      - name: Install Linux deps
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      # --- macOS ---
+      - name: Install macOS deps
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+          brew install cmake
+
+      # --- Windows (MSYS2 MinGW64, since your README already points users there) ---
+      - name: Set up MSYS2
+        if: startsWith(matrix.os, 'windows')
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+
+      - name: Build native (Linux/macOS)
+        if: "!startsWith(matrix.os, 'windows')"
+        run: |
+          cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/build --config Release
+
+      - name: Build native (Windows MSYS2)
+        if: startsWith(matrix.os, 'windows')
+        shell: msys2 {0}
+        run: |
+          cmake -S native -B native/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/build
+
+      - name: Build ZIP (Gradle)
+        run: |
+          ./gradlew --no-daemon clean packageZip
+
+      - name: Upload artifact (CI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlimeFinder-${{ matrix.os }}
+          path: build/releases/*.zip
